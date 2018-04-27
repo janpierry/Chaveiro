@@ -14,6 +14,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -23,6 +24,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Base64;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -44,11 +47,12 @@ import sun.security.krb5.internal.PAData;
 public class Exercício11 {
 
     private static SecretKey chaveMestre;
+    private static String chaveMestreString;
     private static String sal = "a0b7a99de04a63b464752d7787abe186";
     private static int iteracoes;
     
     
-    public static void main(String[] args) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+    public static void main(String[] args) throws Exception {
         
         Scanner input = new Scanner(System.in);
         System.out.println("---------------Bem vindo ao chaveiro---------------");
@@ -61,30 +65,49 @@ public class Exercício11 {
         iteracoes = 10000;
         
         chaveMestre = generateDerivedKey(senha, sal, iteracoes);
+        chaveMestreString = Hex.encodeHexString(chaveMestre.getEncoded());
         
-        System.out.println("A sua chave mestre é: " + chaveMestre);
+        System.out.println("A sua chave mestre é: " + chaveMestreString);
+        
+        menuInicial();
+        
+        
+        
+        
+    }
+    
+    public static void menuInicial() throws Exception {
+        
+        Scanner input = new Scanner(System.in);
+        
         System.out.println("");
         System.out.println("------------------Funcionalidades------------------");
         System.out.println("");
         System.out.println("Informe o número da função desejada: ");
         System.out.println("");
         System.out.println("1- Cifrar arquivo");
+        System.out.println("");
         String opcao = input.nextLine();
-        
-        //leArquivo();
         
         switch(opcao){
             case "1":
-                System.out.println("");
-                System.out.println("---------------Cifragem de arquivo---------------");
-                System.out.println("");
-                System.out.println("Insira o caminho de diretório para o arquivo: ");
-                String caminhoArquivo = input.nextLine();
-                cifraArquivo(caminhoArquivo);
+                telaCifraArquivo();
                 break;
             
         }
         
+    }
+    
+    public static void telaCifraArquivo() throws Exception{
+        
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("---------------Cifragem de arquivo---------------");
+        System.out.println("");
+        System.out.println("Insira o caminho de diretório para o arquivo: ");
+        String caminhoArquivo = input.nextLine();
+        cifraArquivo(caminhoArquivo);
+
     }
     
     public static SecretKey generateDerivedKey(String password, String salt, Integer iterations) {
@@ -129,7 +152,7 @@ public class Exercício11 {
         
     }*/
 
-    private static void leArquivo() {
+    /*private static void leArquivo() {
 
         try {
             FileReader arq = new FileReader("/home/jan/Documentos/teste.txt");
@@ -150,9 +173,9 @@ public class Exercício11 {
                     e.getMessage());
         }
         
-    }
+    }*/
     
-    public static String geraSal() throws NoSuchAlgorithmException {
+    public static String geraSal() {
         
         try{
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
@@ -166,14 +189,17 @@ public class Exercício11 {
         return null;
     }
     
-    public static byte[] geraIV() throws NoSuchAlgorithmException, NoSuchProviderException{
+    public static byte[] geraIV()throws Exception{
         byte[] iv = new byte[16];
-        SecureRandom random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        SecureRandom random = null;
+        
+        random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        
         random.nextBytes(iv);
         return iv;
     }
 
-    private static void cifraArquivo(String caminhoArquivo) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, ShortBufferException, IllegalBlockSizeException, BadPaddingException  {
+    private static void cifraArquivo(String caminhoArquivo) throws Exception {
         
         int addProvider = Security.addProvider(new BouncyCastleFipsProvider());
 
@@ -183,12 +209,11 @@ public class Exercício11 {
             System.out.println("Bouncy Castle provider esta disponivel");
         }
         
-        String chaveMestreString = Hex.encodeHexString(chaveMestre.getEncoded());
-        
         String salCifragemArquivo = geraSal();
         SecretKey chaveCifragemArquivo = generateDerivedKey(chaveMestreString, salCifragemArquivo, iteracoes);
         byte[] ivCifragemArquivo = geraIV();
         IvParameterSpec ivSpec = new IvParameterSpec(ivCifragemArquivo);
+        
         try {
             FileReader arquivoLer = new FileReader(caminhoArquivo);
             BufferedReader lerArq = new BufferedReader(arquivoLer);
@@ -204,7 +229,7 @@ public class Exercício11 {
             // a variável "linha" recebe o valor "null" quando o processo
             // de repetição atingir o final do arquivo texto
             while (linha != null) {
-                linhaCifrada = cifraLinha(linha, chaveCifragemArquivo, ivSpec,ivCifragemArquivo);
+                linhaCifrada = cifraLinha(toHex(linha.getBytes()), chaveCifragemArquivo, ivSpec,ivCifragemArquivo);
                 textoCifrado += linhaCifrada + "\n";
                 linha = lerArq.readLine(); // lê da segunda até a última linha
             }
@@ -219,22 +244,48 @@ public class Exercício11 {
 
     }
 
-    private static String cifraLinha(String linha, SecretKey chave, IvParameterSpec ivSpec, byte[] iv) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+    private static String cifraLinha(String linha, SecretKey chave, IvParameterSpec ivSpec, byte[] iv) throws Exception{
         
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding", "BCFIPS");
+        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding", "BCFIPS");
         
-        byte[] chaveByte = Base64.getDecoder().decode(Hex.encodeHexString(chaveMestre.getEncoded()));
-        SecretKey chaveSecreta = new SecretKeySpec(chaveByte, 0, chaveByte.length, "AES");
-        byte[] linhaByte = linha.getBytes();
+        //byte[] chaveByte = Base64.getDecoder().decode(Hex.encodeHexString(chave.getEncoded()));
+        byte[] chaveByte = hexStringToByteArray(Hex.encodeHexString(chave.getEncoded()));
+        System.out.println(chaveByte.length);
+        System.out.println(new String(chaveByte));
+        SecretKey chaveSecreta = new SecretKeySpec(chaveByte, "AES");
+        //byte[] linhaByte = linha.getBytes();
+        
+        byte[] linhaByte = hexStringToByteArray(linha);
+        //System.out.println(new String(linhaByte));
         
         cipher.init(Cipher.ENCRYPT_MODE, chaveSecreta, ivSpec);
-
-        byte[] linhaCifrada = new byte[linhaByte.length];
-
-        cipher.doFinal(linhaCifrada, linhaByte.length);
         
+
+        byte[] linhaCifrada = new byte[cipher.getOutputSize(iv.length + linhaByte.length)];
+        
+        int ctLength = cipher.update(iv, 0, iv.length, linhaCifrada, 0);
+        
+        ctLength += cipher.update(linhaByte, 0, linhaByte.length, linhaCifrada, ctLength);
+        System.out.println(ctLength);
+        System.out.println(cipher.getOutputSize(iv.length + linhaByte.length));
+        ctLength += cipher.doFinal(linhaCifrada, ctLength);
+        
+        /*
+        int ctLength = cipher.update(linhaByte, 0, linhaByte.length, linhaCifrada, 0);
+        System.out.println(linhaCifrada.length);
+        //System.out.println(ctLength);
+        System.out.println(toHex(linhaByte));
+        //ctLength += cipher.doFinal(linhaByte, ctLength);
+        cipher.doFinal(linhaCifrada);
+        */
+        
+        /*
+        //teste
+        System.out.println(linha);
+        System.out.println(new String(linhaByte));
         return new String(linhaCifrada);
-        
+        */
+        return null;
     }
     
     private static String	digits = "0123456789abcdef";
@@ -259,4 +310,13 @@ public class Exercício11 {
         return toHex(data, data.length);
     }
     
+    public static byte[] hexStringToByteArray(String s) {
+        int len = s.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                    + Character.digit(s.charAt(i + 1), 16));
+        }
+        return data;
+}
 }
