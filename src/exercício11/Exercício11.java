@@ -87,6 +87,11 @@ public class Exercício11 {
         System.out.println("Informe o número da função desejada: ");
         System.out.println("");
         System.out.println("1- Cifrar arquivo");
+        System.out.println("2- Decifrar arquivo");
+        System.out.println("3- Consultar");
+        System.out.println("4- Remover");
+        System.out.println("5- Atualizar");
+        System.out.println("6- Sair");
         System.out.println("");
         String opcao = input.nextLine();
         
@@ -94,7 +99,20 @@ public class Exercício11 {
             case "1":
                 telaCifraArquivo();
                 break;
-            
+            case "2":
+                telaDecifraArquivo();
+                break;
+            case "3":
+                telaConsulta();
+                break;
+            case "4":
+                telaRemove();
+                break;
+            case "5":
+                telaAtualiza();
+                break;
+            case "6":
+                break;
         }
         
     }
@@ -108,6 +126,64 @@ public class Exercício11 {
         System.out.println("Insira o caminho de diretório para o arquivo: ");
         String caminhoArquivo = input.nextLine();
         cifraArquivo(caminhoArquivo);
+        
+        menuInicial();
+
+    }
+    
+    public static void telaDecifraArquivo() throws Exception{
+        
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("--------------Decifragem de arquivo--------------");
+        System.out.println("");
+        System.out.println("Insira o caminho de diretório para o arquivo: ");
+        String caminhoArquivo = input.nextLine();
+        decifraArquivo(caminhoArquivo);
+        
+        menuInicial();
+
+    }
+    
+    public static void telaConsulta() throws Exception{
+        
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("--------------Consultar Registro--------------");
+        System.out.println("");
+        System.out.println("Insira o nome do arquivo: ");
+        String nomeArquivo = input.nextLine();
+        consultaRegistro(nomeArquivo);
+        
+        menuInicial();
+
+    }
+    
+    public static void telaRemove() throws Exception{
+        
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("---------------Remover Registro---------------");
+        System.out.println("");
+        System.out.println("Insira o nome do arquivo: ");
+        String nomeArquivo = input.nextLine();
+        removeRegistro(nomeArquivo);
+        
+        menuInicial();
+
+    }
+    
+    public static void telaAtualiza() throws Exception{
+        
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("--------------Atualiza Registro--------------");
+        System.out.println("");
+        System.out.println("Insira o nome do arquivo: ");
+        String nomeArquivo = input.nextLine();
+        atualizaRegistro(nomeArquivo);
+        
+        menuInicial();
 
     }
     
@@ -310,14 +386,21 @@ public class Exercício11 {
     {
         return toHex(data, data.length);
     }
+
+    private static void decifraArquivo(String caminhoArquivo) {
+
+    }
+
+    private static void consultaRegistro(String nomeArquivo) {
+
+    }
+
+    private static void removeRegistro(String nomeArquivo) {
+
+    }
+
+    private static void atualizaRegistro(String nomeArquivo) {
+
+    }
     
-    public static byte[] hexStringToByteArray(String s) {
-        int len = s.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i + 1), 16));
-        }
-        return data;
-}
 }
