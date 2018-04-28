@@ -29,6 +29,7 @@ import java.util.logging.Logger;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -248,31 +249,31 @@ public class Exercício11 {
         
         Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding", "BCFIPS");
         
-        //byte[] chaveByte = Base64.getDecoder().decode(Hex.encodeHexString(chave.getEncoded()));
-        byte[] chaveByte = hexStringToByteArray(Hex.encodeHexString(chave.getEncoded()));
-        System.out.println(chaveByte.length);
-        System.out.println(new String(chaveByte));
-        SecretKey chaveSecreta = new SecretKeySpec(chaveByte, "AES");
+        byte chaveByte[] = org.apache.commons.codec.binary.Hex.decodeHex(Hex.encodeHexString(chave.getEncoded()).toCharArray());
+        //System.out.println(toHex(chaveByte));
+        //System.out.println(Hex.encodeHexString(chave.getEncoded()).toCharArray());
+        //System.out.println(chaveByte.length);
+        //System.out.println(Hex.encodeHexString(chaveByte));
+        
+        //SecretKey chaveSecreta = new SecretKeySpec(chaveByte, "AES");
         //byte[] linhaByte = linha.getBytes();
         
-        byte[] linhaByte = hexStringToByteArray(linha);
+        byte linhaByte[] = org.apache.commons.codec.binary.Hex.decodeHex(linha.toCharArray());
+        //System.out.println(toHex(linhaByte));
         //System.out.println(new String(linhaByte));
         
-        cipher.init(Cipher.ENCRYPT_MODE, chaveSecreta, ivSpec);
         
-
-        byte[] linhaCifrada = new byte[cipher.getOutputSize(iv.length + linhaByte.length)];
+        //Mudança de chave para testar
+        cipher.init(Cipher.ENCRYPT_MODE, chave, ivSpec);
         
-        int ctLength = cipher.update(iv, 0, iv.length, linhaCifrada, 0);
+        //byte[] linhaCifrada = new byte[cipher.getOutputSize(linhaByte.length)];
         
-        ctLength += cipher.update(linhaByte, 0, linhaByte.length, linhaCifrada, ctLength);
-        System.out.println(ctLength);
-        System.out.println(cipher.getOutputSize(iv.length + linhaByte.length));
-        ctLength += cipher.doFinal(linhaCifrada, ctLength);
+        String linhaCifradaS = Hex.encodeHexString(cipher.doFinal(linha.getBytes()));
+        
+        return linhaCifradaS;
         
         /*
-        int ctLength = cipher.update(linhaByte, 0, linhaByte.length, linhaCifrada, 0);
-        System.out.println(linhaCifrada.length);
+        
         //System.out.println(ctLength);
         System.out.println(toHex(linhaByte));
         //ctLength += cipher.doFinal(linhaByte, ctLength);
@@ -285,7 +286,7 @@ public class Exercício11 {
         System.out.println(new String(linhaByte));
         return new String(linhaCifrada);
         */
-        return null;
+       
     }
     
     private static String	digits = "0123456789abcdef";
