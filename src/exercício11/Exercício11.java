@@ -9,7 +9,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -18,38 +17,28 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.math.BigInteger;
 import java.nio.channels.FileChannel;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Scanner;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
-import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.bouncycastle.crypto.engines.AESEngine;
 import org.bouncycastle.crypto.modes.GCMBlockCipher;
 import org.bouncycastle.crypto.params.AEADParameters;
 import org.bouncycastle.crypto.params.KeyParameter;
-import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
+import org.bouncycastle.crypto.InvalidCipherTextException;
 
 /**
  *
@@ -118,15 +107,19 @@ public class Exercício11 {
         
         conteudoChaveiro = new ArrayList();
         
-        ArrayList<String> nomeArquivo = new ArrayList();
-        ArrayList<String> salNome = new ArrayList();
-        ArrayList<String> chaveArquivo = new ArrayList();
-        ArrayList<String> salChave = new ArrayList();
+        ArrayList<String> hMacNome = new ArrayList();
+        ArrayList<IvParameterSpec> ivNome = new ArrayList();
+        ArrayList<Key> keyNome = new ArrayList();
+        ArrayList<Key> hMacKeyNome = new ArrayList();
+        ArrayList<String> gcmChave = new ArrayList();
+        ArrayList<String> salGcmChave = new ArrayList();
         
-        conteudoChaveiro.add(nomeArquivo);
-        conteudoChaveiro.add(salNome);
-        conteudoChaveiro.add(chaveArquivo);
-        conteudoChaveiro.add(salChave);
+        conteudoChaveiro.add(hMacNome);
+        conteudoChaveiro.add(ivNome);
+        conteudoChaveiro.add(keyNome);
+        conteudoChaveiro.add(hMacKeyNome);
+        conteudoChaveiro.add(gcmChave);
+        conteudoChaveiro.add(salGcmChave);
         
         FileOutputStream fileOut = new FileOutputStream(arquivoChaveiro);
         ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
@@ -337,92 +330,77 @@ public class Exercício11 {
     }
 
     private static void cifraArquivo(String caminhoArquivo) throws Exception {
-        
-        int addProvider = Security.addProvider(new BouncyCastleFipsProvider());
 
-        if (Security.getProvider("BCFIPS") == null) {
-            System.out.println("Bouncy Castle provider NAO disponivel");
-        } else {
-            System.out.println("Bouncy Castle provider esta disponivel");
-        }
         
-        String salCifragemArquivo = geraSal();
-        SecretKey chaveCifragemArquivo = generateDerivedKey(chaveMestreString, salCifragemArquivo, iteracoes);
-        byte[] ivCifragemArquivo = geraIV();
-        IvParameterSpec ivSpec = new IvParameterSpec(ivCifragemArquivo);
+        int addProvider1 = Security.addProvider(new BouncyCastleProvider());
         
-        try {
-            FileReader arquivoLer = new FileReader(caminhoArquivo);
-            BufferedReader lerArq = new BufferedReader(arquivoLer);
+        File file = new File(caminhoArquivo);
+        
+        if(!file.exists()){
+            System.out.println("O caminho especificado não corresponde a um arquivo!");
+        }else{
             
-            FileWriter arquivoEscrever = new FileWriter(caminhoArquivo, true);
-            BufferedWriter buffWrite = new BufferedWriter(arquivoEscrever);
+            KeyGenerator sKenGen = KeyGenerator.getInstance("AES");
+            Key aesKey = sKenGen.generateKey();
+            
+            byte[] ivByte = geraIV();
+            IvParameterSpec ivSpec = new IvParameterSpec(ivByte);
 
-            // lê a primeira linha
+            //Leitura
+            FileReader arquivoLer = new FileReader(file);
+            BufferedReader lerArq = new BufferedReader(arquivoLer);
+
+            StringBuilder sb = new StringBuilder();
+            
             String linha = lerArq.readLine();
-            String linhaCifrada = "";
-            String textoCifrado = "";
-         
-            // a variável "linha" recebe o valor "null" quando o processo
-            // de repetição atingir o final do arquivo texto
+            sb.append(linha);
+
             while (linha != null) {
-                linhaCifrada = cifraLinha(toHex(linha.getBytes()), chaveCifragemArquivo, ivSpec,ivCifragemArquivo);
-                textoCifrado += linhaCifrada + "\n";
-                linha = lerArq.readLine(); // lê da segunda até a última linha
+                linha = lerArq.readLine();
+                
+                if(linha != null){
+                    sb.append(System.lineSeparator());
+                    sb.append(linha);
+                }
+                
             }
             
-            System.out.println(textoCifrado);
+            String texto = sb.toString();
 
-            arquivoLer.close();
-        } catch (IOException e) {
-            System.err.printf("Erro na abertura do arquivo: %s.\n",
-                    e.getMessage());
+            lerArq.close();
+            
+            byte[] conteudoArquivo = texto.getBytes();
+            
+            // Instanciando cipher
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+            
+            //Cifra o texto
+            cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+
+            byte[] conteudoCifrado = new byte[cipher.getOutputSize(ivByte.length + conteudoArquivo.length)];
+
+            int ctLength = cipher.update(ivByte, 0, ivByte.length, conteudoCifrado, 0);
+
+            ctLength += cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, ctLength);
+
+            ctLength += cipher.doFinal(conteudoCifrado, ctLength);
+            
+            String cifradoString = new String(conteudoCifrado);
+            //String contendo conteudo cifradoXXX
+            
+            //Escrita
+            FileWriter arquivoEscrever = new FileWriter(file);
+            BufferedWriter buffWrite = new BufferedWriter(arquivoEscrever);
+            
+            buffWrite.append(cifradoString);
+        
+            buffWrite.close();
+            
+            //Adiciona os dados no chaveiro
+
+            
         }
 
-    }
-
-    private static String cifraLinha(String linha, SecretKey chave, IvParameterSpec ivSpec, byte[] iv) throws Exception{
-        
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding", "BCFIPS");
-        
-        byte chaveByte[] = org.apache.commons.codec.binary.Hex.decodeHex(Hex.encodeHexString(chave.getEncoded()).toCharArray());
-        //System.out.println(toHex(chaveByte));
-        //System.out.println(Hex.encodeHexString(chave.getEncoded()).toCharArray());
-        //System.out.println(chaveByte.length);
-        //System.out.println(Hex.encodeHexString(chaveByte));
-        
-        //SecretKey chaveSecreta = new SecretKeySpec(chaveByte, "AES");
-        //byte[] linhaByte = linha.getBytes();
-        
-        byte linhaByte[] = org.apache.commons.codec.binary.Hex.decodeHex(linha.toCharArray());
-        //System.out.println(toHex(linhaByte));
-        //System.out.println(new String(linhaByte));
-        
-        
-        //Mudança de chave para testar
-        cipher.init(Cipher.ENCRYPT_MODE, chave, ivSpec);
-        
-        //byte[] linhaCifrada = new byte[cipher.getOutputSize(linhaByte.length)];
-        
-        String linhaCifradaS = Hex.encodeHexString(cipher.doFinal(linha.getBytes()));
-        
-        return linhaCifradaS;
-        
-        /*
-        
-        //System.out.println(ctLength);
-        System.out.println(toHex(linhaByte));
-        //ctLength += cipher.doFinal(linhaByte, ctLength);
-        cipher.doFinal(linhaCifrada);
-        */
-        
-        /*
-        //teste
-        System.out.println(linha);
-        System.out.println(new String(linhaByte));
-        return new String(linhaCifrada);
-        */
-       
     }
     
     private static String	digits = "0123456789abcdef";
