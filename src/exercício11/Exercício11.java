@@ -7,6 +7,8 @@ package exercício11;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.EOFException;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -22,6 +24,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Scanner;
 import java.util.logging.Level;
@@ -51,6 +54,8 @@ public class Exercício11 {
     private static String chaveMestreString;
     private static String sal = "a0b7a99de04a63b464752d7787abe186";
     private static int iteracoes;
+    private static File chaveiro = null;
+    private static ArrayList<ArrayList> conteudoChaveiro = null;
     
     
     public static void main(String[] args) throws Exception {
@@ -68,12 +73,59 @@ public class Exercício11 {
         chaveMestre = generateDerivedKey(senha, sal, iteracoes);
         chaveMestreString = Hex.encodeHexString(chaveMestre.getEncoded());
         
-        System.out.println("A sua chave mestre é: " + chaveMestreString);
+        //Ler esse arquivo
+        File file1 = new File("chaveiro.dat");
+        file1.createNewFile();
+        
+        FileInputStream fileInput = new FileInputStream(file1);
+        //Lembrando que o arquivo chaveiroMemoria.dat precisa ser sempre deletado
+        //Se isso não ocorrer, a linha file2.createNewFile(); vai recuperar o file da última execução que
+        // já tem algo dentro, logo vai passar nesse if
+        //Verifica se é a primeira vez com o arquivo
+        if(fileInput.available() == 0){
+            iniciaChaveiro(file1);
+        }else{
+            //Deve decifrar o conteúdo de file1 e colocar o conteúdo em file2
+            //Verifica se após decifrar, o arquivo está ok
+            File file2 = new File("chaveiroMemoria.dat");
+            file2.createNewFile();
+            try {
+                FileInputStream fileInputVer = new FileInputStream(file2);
+                ObjectInputStream objInputVer = new ObjectInputStream(fileInputVer);
+                objInputVer.readObject();
+                //Falta método que decifra o file1
+            } catch (IOException e) {
+                System.out.println("Você não possui acesso ao chaveiro. Vá embora!!!");
+                System.exit(0);
+            }
+        }
+        
+        chaveiro = file1;
+        
+        System.out.println("Sua chave mestre é: " + chaveMestreString);
         
         menuInicial();
         
+        //No fim da aplicação deve sempre ser cifrado o chaveiro
         
+    }
+    
+    public static void iniciaChaveiro(File arquivoChaveiro) throws Exception{
         
+        conteudoChaveiro = new ArrayList();
+        
+        ArrayList<String> nomeArquivo = new ArrayList();
+        ArrayList<String> chaveArquivo = new ArrayList();
+        
+        conteudoChaveiro.add(nomeArquivo);
+        conteudoChaveiro.add(chaveArquivo);
+        
+        FileOutputStream fileOut = new FileOutputStream(arquivoChaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
         
     }
     
