@@ -7,6 +7,8 @@ package exercício11;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
+import java.nio.channels.FileChannel;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -41,8 +44,12 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.engines.AESEngine;
+import org.bouncycastle.crypto.modes.GCMBlockCipher;
+import org.bouncycastle.crypto.params.AEADParameters;
+import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
-import sun.security.krb5.internal.PAData;
 
 /**
  *
@@ -53,7 +60,7 @@ public class Exercício11 {
     private static SecretKey chaveMestre;
     private static String chaveMestreString;
     private static String sal = "a0b7a99de04a63b464752d7787abe186";
-    private static int iteracoes;
+    private static int iteracoes = 10000;
     private static File chaveiro = null;
     private static ArrayList<ArrayList> conteudoChaveiro = null;
     
@@ -66,10 +73,6 @@ public class Exercício11 {
         System.out.println("Insira a sua senha: ");
         String senha = input.nextLine();
         
-        
-        //Número de iterações
-        iteracoes = 10000;
-        
         chaveMestre = generateDerivedKey(senha, sal, iteracoes);
         chaveMestreString = Hex.encodeHexString(chaveMestre.getEncoded());
         
@@ -77,36 +80,37 @@ public class Exercício11 {
         File file1 = new File("chaveiro.dat");
         file1.createNewFile();
         
+        chaveiro = file1;
+        
         FileInputStream fileInput = new FileInputStream(file1);
-        //Lembrando que o arquivo chaveiroMemoria.dat precisa ser sempre deletado
-        //Se isso não ocorrer, a linha file2.createNewFile(); vai recuperar o file da última execução que
-        // já tem algo dentro, logo vai passar nesse if
         //Verifica se é a primeira vez com o arquivo
         if(fileInput.available() == 0){
             iniciaChaveiro(file1);
         }else{
-            //Deve decifrar o conteúdo de file1 e colocar o conteúdo em file2
             //Verifica se após decifrar, o arquivo está ok
             File file2 = new File("chaveiroMemoria.dat");
             file2.createNewFile();
+            //Copia o conteúdo do chaveiro para um chaveiro auxiliar
+            FileChannel in = new FileInputStream(file1).getChannel();
+            FileChannel out = (new FileOutputStream(file2)).getChannel();
+            in.transferTo(0, file1.length(), out);
+            in.close();
+            out.close();
             try {
-                FileInputStream fileInputVer = new FileInputStream(file2);
-                ObjectInputStream objInputVer = new ObjectInputStream(fileInputVer);
-                objInputVer.readObject();
-                //Falta método que decifra o file1
-            } catch (IOException e) {
+                tentaDecifrarChaveiro(file2);
+            } catch (Exception e) {
                 System.out.println("Você não possui acesso ao chaveiro. Vá embora!!!");
                 System.exit(0);
             }
+            decifraChaveiro();
         }
-        
-        chaveiro = file1;
         
         System.out.println("Sua chave mestre é: " + chaveMestreString);
         
         menuInicial();
         
         //No fim da aplicação deve sempre ser cifrado o chaveiro
+        cifraChaveiro();
         
     }
     
@@ -115,10 +119,14 @@ public class Exercício11 {
         conteudoChaveiro = new ArrayList();
         
         ArrayList<String> nomeArquivo = new ArrayList();
+        ArrayList<String> salNome = new ArrayList();
         ArrayList<String> chaveArquivo = new ArrayList();
+        ArrayList<String> salChave = new ArrayList();
         
         conteudoChaveiro.add(nomeArquivo);
+        conteudoChaveiro.add(salNome);
         conteudoChaveiro.add(chaveArquivo);
+        conteudoChaveiro.add(salChave);
         
         FileOutputStream fileOut = new FileOutputStream(arquivoChaveiro);
         ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
@@ -244,7 +252,7 @@ public class Exercício11 {
         SecretKeyFactory pbkdf2 = null;
         String derivedPass = null;
         try {
-            pbkdf2 = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            pbkdf2 = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             SecretKey sk = pbkdf2.generateSecret(spec);
             return sk;
         } catch (Exception e) {
@@ -454,5 +462,157 @@ public class Exercício11 {
     private static void atualizaRegistro(String nomeArquivo) {
 
     }
+
+    private static void cifraChaveiro() throws Exception {
+
+        byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveMestreString.toCharArray());
+        
+        SecretKey sk = generateDerivedKey(chaveMestreString, sal, iteracoes);
+        String ivHex = Hex.encodeHexString(sk.getEncoded());
+        byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        
+        FileInputStream fileInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(fileInput);
+        
+        ArrayList<ArrayList> objetoHex = (ArrayList<ArrayList>)objInput.readObject();
+        byte[] conteudoByte = convertObjectToByteArray(objetoHex);
+        objInput.close();
+        
+        GCMBlockCipher gcm = new GCMBlockCipher(new AESEngine());
+        
+        KeyParameter chave2 = new KeyParameter(chave);
+        AEADParameters params = new AEADParameters(chave2, 64, iv);
+        
+        gcm.init(true, params);
+        int outsize = gcm.getOutputSize(conteudoByte.length);
+        byte[] outc = new byte[outsize];
+        
+        int lengthOutc = gcm.processBytes(conteudoByte, 0, conteudoByte.length, outc, 0);
+        
+        gcm.doFinal(outc, lengthOutc);
+        
+        FileOutputStream fileOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
+        
+        objOut.writeObject(org.bouncycastle.util.encoders.Hex.toHexString(outc));
+        
+        objOut.close();
+        
+        System.out.println("Chaveiro cifrado = " + org.bouncycastle.util.encoders.Hex.toHexString(outc));
+        
+    }
+
+    private static void decifraChaveiro() throws Exception {
+
+        byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveMestreString.toCharArray());
+        
+        SecretKey sk = generateDerivedKey(chaveMestreString, sal, iteracoes);
+        String ivHex = Hex.encodeHexString(sk.getEncoded());
+        byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        
+        FileInputStream fileInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(fileInput);
+        
+        String objetoHexa = (String)objInput.readObject();
+        objInput.close();
+        byte[] objetoByte = org.apache.commons.codec.binary.Hex.decodeHex(objetoHexa.toCharArray());
+        
+        GCMBlockCipher gcm = new GCMBlockCipher(new AESEngine());
+        
+        KeyParameter chave2 = new KeyParameter(chave);
+        AEADParameters params = new AEADParameters(chave2, 64, iv);
+        
+        gcm.init(false, params);
+
+        int outsize2 = gcm.getOutputSize(objetoByte.length);
+        byte[] out2 = new byte[outsize2];
+        int offOut2 = gcm.processBytes(objetoByte, 0, objetoByte.length, out2, 0);
+        
+        String textoDecifrado = "";
+        try {  
+            gcm.doFinal(out2, offOut2);           
+            textoDecifrado = new String(out2);
+
+        } catch (InvalidCipherTextException e) {
+            System.err.println("Erro de decifragem: " + e.getMessage());
+            //e.printStackTrace();
+        }
+        
+        FileOutputStream fileOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
+        
+        ArrayList<ArrayList> saida = (ArrayList<ArrayList>)convertByteArrayToObject(out2);
+        
+        objOut.writeObject(saida);
+        
+        objOut.close();
+        
+        
+    }
     
+    public static byte[] convertObjectToByteArray(Object object) {
+        byte[] bytes = null;
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            objectOutputStream.writeObject(object);
+            objectOutputStream.flush();
+            objectOutputStream.close();
+            byteArrayOutputStream.close();
+            bytes = byteArrayOutputStream.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+         
+        return bytes;
+    }
+    
+    public static Object convertByteArrayToObject(byte[] bytes) {
+        Object object = null;
+ 
+        try {
+            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
+            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+            object = objectInputStream.readObject();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+         
+        return object;
+    }
+
+    private static void tentaDecifrarChaveiro(File file2) throws Exception {
+
+        byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveMestreString.toCharArray());
+        
+        SecretKey sk = generateDerivedKey(chaveMestreString, sal, iteracoes);
+        String ivHex = Hex.encodeHexString(sk.getEncoded());
+        byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        
+        FileInputStream fileInput = new FileInputStream(file2);
+        ObjectInputStream objInput = new ObjectInputStream(fileInput);
+        
+        String objetoHexa = (String)objInput.readObject();
+        objInput.close();
+        byte[] objetoByte = org.apache.commons.codec.binary.Hex.decodeHex(objetoHexa.toCharArray());
+        
+        GCMBlockCipher gcm = new GCMBlockCipher(new AESEngine());
+        
+        KeyParameter chave2 = new KeyParameter(chave);
+        AEADParameters params = new AEADParameters(chave2, 64, iv);
+        
+        gcm.init(false, params);
+
+        int outsize2 = gcm.getOutputSize(objetoByte.length);
+        byte[] out2 = new byte[outsize2];
+        int offOut2 = gcm.processBytes(objetoByte, 0, objetoByte.length, out2, 0);
+        
+        String textoDecifrado = "";
+          
+        gcm.doFinal(out2, offOut2);           
+        textoDecifrado = new String(out2);
+        
+    }
 }
