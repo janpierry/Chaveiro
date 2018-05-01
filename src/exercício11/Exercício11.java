@@ -402,23 +402,27 @@ public class Exercício11 {
             
             //Cifra o texto
             cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+/*
+            byte[] conteudoCifrado = new byte[cipher.getOutputSize(conteudoArquivo.length)];
 
-            byte[] conteudoCifrado = new byte[cipher.getOutputSize(ivByte.length + conteudoArquivo.length)];
-
-            int ctLength = cipher.update(ivByte, 0, ivByte.length, conteudoCifrado, 0);
-
-            ctLength += cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, ctLength);
+            int ctLength = cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, 0);
 
             ctLength += cipher.doFinal(conteudoCifrado, ctLength);
+  */          
+            //teste
+            byte[] conteudoCifrado = cipher.doFinal(conteudoArquivo);
             
-            String cifradoString = new String(conteudoCifrado);
-            //String contendo conteudo cifradoXXX
+            String cifradoHex = toHex(conteudoCifrado);
+            System.out.println("");
+            System.out.println("O arquivo foi cifrado");
+            System.out.println("Conteudo cifrado do arquivo: ");
+            System.out.println(cifradoHex);
             
             //Escrita
             FileWriter arquivoEscrever = new FileWriter(file);
             BufferedWriter buffWrite = new BufferedWriter(arquivoEscrever);
             
-            buffWrite.append(cifradoString);
+            buffWrite.append(cifradoHex);
         
             buffWrite.close();
             
@@ -536,12 +540,31 @@ public class Exercício11 {
                 FileReader arquivoLer = new FileReader(file);
                 BufferedReader lerArq = new BufferedReader(arquivoLer);
                 
-                //Arquivo cifrado só tem uma linha
-                String textoCifrado = lerArq.readLine();
-                byte[] textoCifradoByte = textoCifrado.getBytes();
+                StringBuilder sb = new StringBuilder();
+                String linha = lerArq.readLine();
+                sb.append(linha);
+
+                while (linha != null) {
+                    linha = lerArq.readLine();
+                
+                    if(linha != null){
+                        sb.append(System.lineSeparator());
+                        sb.append(linha);
+                    }
+                
+                }
+                lerArq.close();
+                
+                String textoCifrado = sb.toString();
+                
+                byte[] textoCifradoByte = org.apache.commons.codec.binary.Hex.decodeHex(textoCifrado.toCharArray());
                 
                 byte[] textoDecifradoByte = cipher.doFinal(textoCifradoByte);
                 String textoDecifrado = new String(textoDecifradoByte);
+                System.out.println("");
+                System.out.println("O arquivo foi decifrado");
+                System.out.println("Conteudo do arquivo: ");
+                System.out.println(textoDecifrado);
                 
                 //Escrita
                 FileWriter arquivoEscrever = new FileWriter(file);
@@ -551,76 +574,11 @@ public class Exercício11 {
 
                 buffWrite.close();
             
-            /*
-                cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
-
-                byte[] conteudoCifrado = new byte[cipher.getOutputSize(ivByte.length + conteudoArquivo.length)];
-
-                int ctLength = cipher.update(ivByte, 0, ivByte.length, conteudoCifrado, 0);
-
-                ctLength += cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, ctLength);
-
-                ctLength += cipher.doFinal(conteudoCifrado, ctLength);
-
-                String cifradoString = new String(conteudoCifrado);
-               */ 
             }
             
             
         }
-        /*
-        int addProvider = Security.addProvider(new BouncyCastleProvider());
         
-        String nomeArquivo = file.getName();
-        
-        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
-        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
-        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
-        Key chave = new SecretKeySpec(chaveByte, "AES");
-        Key chaveHMac = new SecretKeySpec(chave.getEncoded(), "HMacSHA256");
-        
-        Key ivGerado = generateDerivedKey(chaveMestreString, salIvNome, iteracoes);
-        String ivHex = Hex.encodeHexString(ivGerado.getEncoded());
-        byte[] ivByte = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
-        IvParameterSpec ivSpec = new IvParameterSpec(ivByte);
-        
-        Mac hMac = Mac.getInstance("HMacSHA256");
-        
-        //teste
-        KeyGenerator sKenGen = KeyGenerator.getInstance("AES");
-        Key aesKey = sKenGen.generateKey();
-        
-        //Cipher cipher = Cipher.getInstance("AES/CTR/PKCS7Padding");
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
-        
-        byte[] textoCifrado = new byte[cipher.getOutputSize(nomeArquivo.length() + hMac.getMacLength())];
-        
-        int ctLength = cipher.update(nomeArquivo.getBytes(), 0, nomeArquivo.length(), textoCifrado, 0);
-        
-        hMac.init(chaveHMac);
-        hMac.update(nomeArquivo.getBytes());
-        
-        ctLength += cipher.doFinal(hMac.doFinal(), 0, hMac.getMacLength(), textoCifrado, ctLength);
-        
-        String textoCifradoHex = toHex(textoCifrado);
-        
-        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
-        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
-        
-        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
-        
-        objInput.close();
-        
-        conteudoChaveiro.get(0).add(textoCifradoHex);
-        
-        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
-        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
-        
-        objOut.writeObject(conteudoChaveiro);
-        
-        objOut.close();
-        */
         
     }
 
