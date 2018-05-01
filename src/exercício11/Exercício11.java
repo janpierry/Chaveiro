@@ -119,32 +119,13 @@ public class Exercício11 {
         ArrayList<ArrayList> conteudoChaveiro = new ArrayList();
         
         ArrayList<String> hMacNome = new ArrayList();
-        //ArrayList<String> salKeyNome = new ArrayList();
-        //ArrayList<String> salIvNome = new ArrayList();
-        //Não precisa porque a hmacKey pode ser gerada a partir da keyNome
-        //ArrayList<Key> hMacKeyNome = new ArrayList();
         
-        //GCM da chave e do iv pois ambos são usados para cifrar e decifrar o arquivo
-        //Tanto gcmChave quanto gcmIv devem estar cifrados pelo GCM
-        //Por isso o salChave e salIV de cada um é guardado, para que a chave e o iv utilizado para
-        // fazer o gcm da chave possam ser derivados e utilizados para decifrar o gcm da chave
         ArrayList<String> gcmChave = new ArrayList();
-        //ArrayList<String> salChaveGcmChave = new ArrayList();
-        //ArrayList<String> salIvGcmChave = new ArrayList();
         ArrayList<String> gcmIv = new ArrayList();
-        //ArrayList<String> salChaveGcmIv = new ArrayList();
-        //ArrayList<String> salIvGcmIv = new ArrayList();
         
         conteudoChaveiro.add(hMacNome);
-        //Removido para usar um para todos
-        //conteudoChaveiro.add(salKeyNome);
-        //conteudoChaveiro.add(salIvNome);
         conteudoChaveiro.add(gcmChave);
-        //conteudoChaveiro.add(salChaveGcmChave);
-        //conteudoChaveiro.add(salIvGcmChave);
         conteudoChaveiro.add(gcmIv);
-        //conteudoChaveiro.add(salChaveGcmIv);
-        //conteudoChaveiro.add(salIvGcmIv);
         
         FileOutputStream fileOut = new FileOutputStream(chaveiro);
         ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
@@ -166,10 +147,11 @@ public class Exercício11 {
         System.out.println("");
         System.out.println("1- Cifrar arquivo");
         System.out.println("2- Decifrar arquivo");
-        System.out.println("3- Consultar");
-        System.out.println("4- Remover");
-        System.out.println("5- Atualizar");
-        System.out.println("6- Sair");
+        System.out.println("3- Inserir");
+        System.out.println("4- Consultar");
+        System.out.println("5- Remover");
+        System.out.println("6- Atualizar");
+        System.out.println("7- Sair");
         System.out.println("");
         String opcao = input.nextLine();
         
@@ -181,15 +163,18 @@ public class Exercício11 {
                 telaDecifraArquivo();
                 break;
             case "3":
-                telaConsulta();
+                telaInsere();
                 break;
             case "4":
-                telaRemove();
+                telaConsulta();
                 break;
             case "5":
-                telaAtualiza();
+                telaRemove();
                 break;
             case "6":
+                telaAtualiza();
+                break;
+            case "7":
                 break;
         }
         
@@ -221,6 +206,28 @@ public class Exercício11 {
         
         menuInicial();
 
+    }
+    
+    private static void telaInsere() throws Exception{
+
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("--------------Inserir Registro--------------");
+        System.out.println("");
+        System.out.println("Insira o nome do arquivo: ");
+        String nomeArquivo = input.nextLine();
+        
+        System.out.println("");
+        System.out.println("Insira a chave utilizada para cifrar o arquivo: ");
+        String chaveArquivo = input.nextLine();
+        
+        System.out.println("");
+        System.out.println("Insira o IV utilizado para cifrar o arquivo: ");
+        String ivArquivo = input.nextLine();
+        insereRegistro(nomeArquivo, chaveArquivo, ivArquivo);
+        
+        menuInicial();
+        
     }
     
     public static void telaConsulta() throws Exception{
@@ -255,7 +262,7 @@ public class Exercício11 {
         
         Scanner input = new Scanner(System.in);
 
-        System.out.println("--------------Atualiza Registro--------------");
+        System.out.println("--------------Atualizar Registro--------------");
         System.out.println("");
         System.out.println("Insira o nome do arquivo: ");
         String nomeArquivo = input.nextLine();
@@ -278,57 +285,6 @@ public class Exercício11 {
         }
         return null;
     }
-    
-    /*public void insereRegistro(String registro){
-        
-        try {
-
-            //Gera o arquivo para armazenar o objeto
-            FileOutputStream fos = new FileOutputStream("chaveiro.dat");
-
-            //Classe responsavel por inserir os objetos
-            ObjectOutputStream oos = new ObjectOutputStream(fos);
-
-            oos.flush();
-
-            oos.close();
-
-            fos.flush();
-
-            fos.close();
-
-            System.out.println("Objeto gravado com sucesso!");
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-        }
-        
-    }*/
-
-    /*private static void leArquivo() {
-
-        try {
-            FileReader arq = new FileReader("/home/jan/Documentos/teste.txt");
-            BufferedReader lerArq = new BufferedReader(arq);
-
-            String linha = lerArq.readLine(); // lê a primeira linha
-            // a variável "linha" recebe o valor "null" quando o processo
-            // de repetição atingir o final do arquivo texto
-            while (linha != null) {
-                System.out.printf("%s\n", linha);
-
-                linha = lerArq.readLine(); // lê da segunda até a última linha
-            }
-
-            arq.close();
-        } catch (IOException e) {
-            System.err.printf("Erro na abertura do arquivo: %s.\n",
-                    e.getMessage());
-        }
-        
-    }*/
     
     public static String geraSal() {
         
@@ -402,14 +358,7 @@ public class Exercício11 {
             
             //Cifra o texto
             cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
-/*
-            byte[] conteudoCifrado = new byte[cipher.getOutputSize(conteudoArquivo.length)];
 
-            int ctLength = cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, 0);
-
-            ctLength += cipher.doFinal(conteudoCifrado, ctLength);
-  */          
-            //teste
             byte[] conteudoCifrado = cipher.doFinal(conteudoArquivo);
             
             String cifradoHex = toHex(conteudoCifrado);
@@ -594,9 +543,114 @@ public class Exercício11 {
         
         
     }
+    private static void insereRegistro(String nomeArquivo, String chaveArquivo, String ivArquivo) throws Exception{
+/*
+        //Calcula HMAC do nome do arquivo
+        int addProvider = Security.addProvider(new BouncyCastleProvider());
+        
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chaveHMac = new SecretKeySpec(chaveByte, "HMacSHA256");
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        byte[] hMacNomeArquivo = hMac.doFinal();
+        
+        //Calcula GCM da chave e do IV
+   */     
+        /*FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(0).add(toHex(hMacNomeArquivo));
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        */
+        
+        
+    }
 
-    private static void consultaRegistro(String nomeArquivo) {
+    private static void consultaRegistro(String nomeArquivo) throws Exception{
+        
+        int posicao = verificaNome(nomeArquivo);
+        
+        if (posicao == -1) {
+            System.out.println("");
+            System.out.println("O arquivo especificado não foi encontrado no chaveiro");
+        } else {
+            FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+            ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
 
+            ArrayList<ArrayList> conteudoChaveiro = (ArrayList) objInput.readObject();
+
+            objInput.close();
+            
+            String gcmKey = (String) conteudoChaveiro.get(1).get(posicao);
+            String gcmIv = (String) conteudoChaveiro.get(2).get(posicao);
+            
+            byte[] gcmKeyByte = org.apache.commons.codec.binary.Hex.decodeHex(gcmKey.toCharArray());
+            byte[] gcmIvByte = org.apache.commons.codec.binary.Hex.decodeHex(gcmIv.toCharArray());
+            
+            //gcmKey
+            GCMBlockCipher gcmChave = new GCMBlockCipher(new AESEngine());
+                
+            SecretKey sk = generateDerivedKey(chaveMestreString, salKeyGcmKey, iteracoes);
+            String chaveHex = Hex.encodeHexString(sk.getEncoded());
+            byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+                
+            SecretKey si = generateDerivedKey(chaveMestreString, salIvGcmKey, iteracoes);
+            String ivHex = Hex.encodeHexString(si.getEncoded());
+            byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+                
+            KeyParameter chave2 = new KeyParameter(chave);
+            AEADParameters params = new AEADParameters(chave2, 64, iv);
+                
+            gcmChave.init(false, params);
+
+            int outsize2 = gcmChave.getOutputSize(gcmKeyByte.length);
+            byte[] chaveDecifradaByte = new byte[outsize2];
+            int offOut2 = gcmChave.processBytes(gcmKeyByte, 0, gcmKeyByte.length, chaveDecifradaByte, 0);
+                
+            gcmChave.doFinal(chaveDecifradaByte, offOut2);
+                
+            //gcmIv
+            GCMBlockCipher gcmIv2 = new GCMBlockCipher(new AESEngine());
+                
+            sk = generateDerivedKey(chaveMestreString, salKeyGcmIv, iteracoes);
+            chaveHex = Hex.encodeHexString(sk.getEncoded());
+            chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+                
+            si = generateDerivedKey(chaveMestreString, salIvGcmIv, iteracoes);
+            ivHex = Hex.encodeHexString(si.getEncoded());
+            iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+                
+            chave2 = new KeyParameter(chave);
+            params = new AEADParameters(chave2, 64, iv);
+                
+            gcmIv2.init(false, params);
+
+            outsize2 = gcmIv2.getOutputSize(gcmIvByte.length);
+            byte[] ivDecifradoByte = new byte[outsize2];
+            offOut2 = gcmIv2.processBytes(gcmIvByte, 0, gcmIvByte.length, ivDecifradoByte, 0);
+            gcmIv2.doFinal(ivDecifradoByte, offOut2);
+            
+            //chaveDecifradaByte e ivDecifradoByte
+            System.out.println("A chave utilizada para cifrar este arquivo foi: " + toHex(chaveDecifradaByte));
+            System.out.println("O iv utilizado para cifrar este arquivo foi: " + toHex(ivDecifradoByte));
+        }
+        
     }
 
     private static void removeRegistro(String nomeArquivo) {
@@ -910,41 +964,7 @@ public class Exercício11 {
                 posicao = i;
             }
         }
-        
         return posicao;
-        
-        //MessageDigest.isEqual(hMac.doFinal(), messageMac));
-        /*
-        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
-        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
-        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
-        Key chaveHMac = new SecretKeySpec(chaveByte, "HMacSHA256");
-        
-        Mac hMac = Mac.getInstance("HMacSHA256");
-        
-        hMac.init(chaveHMac);
-        hMac.update(nomeArquivo.getBytes());
-        
-        byte[] hMacNomeArquivo = hMac.doFinal();
-        
-        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
-        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
-        
-        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
-        
-        objInput.close();
-        
-        conteudoChaveiro.get(0).add(toHex(hMacNomeArquivo));
-        
-        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
-        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
-        
-        objOut.writeObject(conteudoChaveiro);
-        
-        objOut.close();
-        */
-        
-        
     }
     
     
