@@ -19,6 +19,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.channels.FileChannel;
 import java.security.Key;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -26,10 +27,12 @@ import java.util.ArrayList;
 import java.util.Scanner;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.bouncycastle.crypto.engines.AESEngine;
@@ -51,7 +54,15 @@ public class Exercício11 {
     private static String sal = "a0b7a99de04a63b464752d7787abe186";
     private static int iteracoes = 10000;
     private static File chaveiro = null;
-    private static ArrayList<ArrayList> conteudoChaveiro = null;
+    
+    //Sal utilizado para derivar as chaves e os Ivs utilizados para cifrar as chaves 
+    // e os Ivs do HMac do nome e do GCM da chave e do Iv
+    private static String salKeyNome = "881900f5d6e5cabca409675791601323";
+    private static String salIvNome = "b4bc5635a2b6a701ab988c285503becb";
+    private static String salKeyGcmKey = "fa0c1a321ca6192b57b6a07a20a172e9";
+    private static String salIvGcmKey = "79daf2b0b79fa34253fa69590e2ed6a3";
+    private static String salKeyGcmIv = "c9cd3a072b8952fad9e168de7320459c";
+    private static String salIvGcmIv = "8f373d9016b46aa3433a047e0f982b69";
     
     
     public static void main(String[] args) throws Exception {
@@ -74,7 +85,7 @@ public class Exercício11 {
         FileInputStream fileInput = new FileInputStream(file1);
         //Verifica se é a primeira vez com o arquivo
         if(fileInput.available() == 0){
-            iniciaChaveiro(file1);
+            iniciaChaveiro();
         }else{
             //Verifica se após decifrar, o arquivo está ok
             File file2 = new File("chaveiroMemoria.dat");
@@ -103,25 +114,39 @@ public class Exercício11 {
         
     }
     
-    public static void iniciaChaveiro(File arquivoChaveiro) throws Exception{
+    public static void iniciaChaveiro() throws Exception{
         
-        conteudoChaveiro = new ArrayList();
+        ArrayList<ArrayList> conteudoChaveiro = new ArrayList();
         
         ArrayList<String> hMacNome = new ArrayList();
-        ArrayList<IvParameterSpec> ivNome = new ArrayList();
-        ArrayList<Key> keyNome = new ArrayList();
-        ArrayList<Key> hMacKeyNome = new ArrayList();
+        //ArrayList<String> salKeyNome = new ArrayList();
+        //ArrayList<String> salIvNome = new ArrayList();
+        //Não precisa porque a hmacKey pode ser gerada a partir da keyNome
+        //ArrayList<Key> hMacKeyNome = new ArrayList();
+        
+        //GCM da chave e do iv pois ambos são usados para cifrar e decifrar o arquivo
+        //Tanto gcmChave quanto gcmIv devem estar cifrados pelo GCM
+        //Por isso o salChave e salIV de cada um é guardado, para que a chave e o iv utilizado para
+        // fazer o gcm da chave possam ser derivados e utilizados para decifrar o gcm da chave
         ArrayList<String> gcmChave = new ArrayList();
-        ArrayList<String> salGcmChave = new ArrayList();
+        //ArrayList<String> salChaveGcmChave = new ArrayList();
+        //ArrayList<String> salIvGcmChave = new ArrayList();
+        ArrayList<String> gcmIv = new ArrayList();
+        //ArrayList<String> salChaveGcmIv = new ArrayList();
+        //ArrayList<String> salIvGcmIv = new ArrayList();
         
         conteudoChaveiro.add(hMacNome);
-        conteudoChaveiro.add(ivNome);
-        conteudoChaveiro.add(keyNome);
-        conteudoChaveiro.add(hMacKeyNome);
+        //Removido para usar um para todos
+        //conteudoChaveiro.add(salKeyNome);
+        //conteudoChaveiro.add(salIvNome);
         conteudoChaveiro.add(gcmChave);
-        conteudoChaveiro.add(salGcmChave);
+        //conteudoChaveiro.add(salChaveGcmChave);
+        //conteudoChaveiro.add(salIvGcmChave);
+        conteudoChaveiro.add(gcmIv);
+        //conteudoChaveiro.add(salChaveGcmIv);
+        //conteudoChaveiro.add(salIvGcmIv);
         
-        FileOutputStream fileOut = new FileOutputStream(arquivoChaveiro);
+        FileOutputStream fileOut = new FileOutputStream(chaveiro);
         ObjectOutputStream objOut = new ObjectOutputStream(fileOut);
         
         objOut.writeObject(conteudoChaveiro);
@@ -337,6 +362,7 @@ public class Exercício11 {
         File file = new File(caminhoArquivo);
         
         if(!file.exists()){
+            System.out.println("");
             System.out.println("O caminho especificado não corresponde a um arquivo!");
         }else{
             
@@ -397,7 +423,9 @@ public class Exercício11 {
             buffWrite.close();
             
             //Adiciona os dados no chaveiro
-
+            incluiHMacNome(file);
+            incluiGcmKeyIv(aesKey, ivSpec);
+            
             
         }
 
@@ -425,8 +453,175 @@ public class Exercício11 {
         return toHex(data, data.length);
     }
 
-    private static void decifraArquivo(String caminhoArquivo) {
+    private static void decifraArquivo(String caminhoArquivo) throws Exception{
 
+        int addProvider = Security.addProvider(new BouncyCastleProvider());
+        
+        File file = new File(caminhoArquivo);
+        
+        if(!file.exists()){
+            System.out.println("O caminho especificado não corresponde a um arquivo!");
+        }else{
+            
+            String nomeArquivo = file.getName();
+            
+            int posicao = verificaNome(nomeArquivo);
+            
+            if(posicao == -1){
+                System.out.println("O arquivo especificado não foi encontrado no chaveiro");
+            }else{
+                FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+                ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+                
+                ArrayList<ArrayList> conteudoChaveiro = (ArrayList) objInput.readObject();
+                
+                objInput.close();
+                
+                String gcmKey = (String)conteudoChaveiro.get(1).get(posicao);
+                String gcmIv = (String)conteudoChaveiro.get(2).get(posicao);
+                byte[] gcmKeyByte = org.apache.commons.codec.binary.Hex.decodeHex(gcmKey.toCharArray());
+                byte[] gcmIvByte = org.apache.commons.codec.binary.Hex.decodeHex(gcmIv.toCharArray());
+                
+                //gcmKey
+                GCMBlockCipher gcmChave = new GCMBlockCipher(new AESEngine());
+                
+                SecretKey sk = generateDerivedKey(chaveMestreString, salKeyGcmKey, iteracoes);
+                String chaveHex = Hex.encodeHexString(sk.getEncoded());
+                byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+                
+                SecretKey si = generateDerivedKey(chaveMestreString, salIvGcmKey, iteracoes);
+                String ivHex = Hex.encodeHexString(si.getEncoded());
+                byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+                
+                KeyParameter chave2 = new KeyParameter(chave);
+                AEADParameters params = new AEADParameters(chave2, 64, iv);
+                
+                gcmChave.init(false, params);
+
+                int outsize2 = gcmChave.getOutputSize(gcmKeyByte.length);
+                byte[] chaveDecifradaByte = new byte[outsize2];
+                int offOut2 = gcmChave.processBytes(gcmKeyByte, 0, gcmKeyByte.length, chaveDecifradaByte, 0);
+                
+                gcmChave.doFinal(chaveDecifradaByte, offOut2);
+                
+                //gcmIv
+                GCMBlockCipher gcmIv2 = new GCMBlockCipher(new AESEngine());
+                
+                sk = generateDerivedKey(chaveMestreString, salKeyGcmIv, iteracoes);
+                chaveHex = Hex.encodeHexString(sk.getEncoded());
+                chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+                
+                si = generateDerivedKey(chaveMestreString, salIvGcmIv, iteracoes);
+                ivHex = Hex.encodeHexString(si.getEncoded());
+                iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+                
+                chave2 = new KeyParameter(chave);
+                params = new AEADParameters(chave2, 64, iv);
+                
+                gcmIv2.init(false, params);
+
+                outsize2 = gcmIv2.getOutputSize(gcmIvByte.length);
+                byte[] ivDecifradoByte = new byte[outsize2];
+                offOut2 = gcmIv2.processBytes(gcmIvByte, 0, gcmIvByte.length, ivDecifradoByte, 0);
+                gcmIv2.doFinal(ivDecifradoByte, offOut2);
+                
+                //chaveDecifradaByte e ivDecifradoByte
+                Key chaveDecifrada = new SecretKeySpec(chaveDecifradaByte, "AES");
+                IvParameterSpec ivDecifrado = new IvParameterSpec(ivDecifradoByte);
+                
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+                
+                cipher.init(Cipher.DECRYPT_MODE, chaveDecifrada, ivDecifrado);
+                
+                FileReader arquivoLer = new FileReader(file);
+                BufferedReader lerArq = new BufferedReader(arquivoLer);
+                
+                //Arquivo cifrado só tem uma linha
+                String textoCifrado = lerArq.readLine();
+                byte[] textoCifradoByte = textoCifrado.getBytes();
+                
+                byte[] textoDecifradoByte = cipher.doFinal(textoCifradoByte);
+                String textoDecifrado = new String(textoDecifradoByte);
+                
+                //Escrita
+                FileWriter arquivoEscrever = new FileWriter(file);
+                BufferedWriter buffWrite = new BufferedWriter(arquivoEscrever);
+
+                buffWrite.append(textoDecifrado);
+
+                buffWrite.close();
+            
+            /*
+                cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+
+                byte[] conteudoCifrado = new byte[cipher.getOutputSize(ivByte.length + conteudoArquivo.length)];
+
+                int ctLength = cipher.update(ivByte, 0, ivByte.length, conteudoCifrado, 0);
+
+                ctLength += cipher.update(conteudoArquivo, 0, conteudoArquivo.length, conteudoCifrado, ctLength);
+
+                ctLength += cipher.doFinal(conteudoCifrado, ctLength);
+
+                String cifradoString = new String(conteudoCifrado);
+               */ 
+            }
+            
+            
+        }
+        /*
+        int addProvider = Security.addProvider(new BouncyCastleProvider());
+        
+        String nomeArquivo = file.getName();
+        
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chave = new SecretKeySpec(chaveByte, "AES");
+        Key chaveHMac = new SecretKeySpec(chave.getEncoded(), "HMacSHA256");
+        
+        Key ivGerado = generateDerivedKey(chaveMestreString, salIvNome, iteracoes);
+        String ivHex = Hex.encodeHexString(ivGerado.getEncoded());
+        byte[] ivByte = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        IvParameterSpec ivSpec = new IvParameterSpec(ivByte);
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        //teste
+        KeyGenerator sKenGen = KeyGenerator.getInstance("AES");
+        Key aesKey = sKenGen.generateKey();
+        
+        //Cipher cipher = Cipher.getInstance("AES/CTR/PKCS7Padding");
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+        
+        byte[] textoCifrado = new byte[cipher.getOutputSize(nomeArquivo.length() + hMac.getMacLength())];
+        
+        int ctLength = cipher.update(nomeArquivo.getBytes(), 0, nomeArquivo.length(), textoCifrado, 0);
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        ctLength += cipher.doFinal(hMac.doFinal(), 0, hMac.getMacLength(), textoCifrado, ctLength);
+        
+        String textoCifradoHex = toHex(textoCifrado);
+        
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(0).add(textoCifradoHex);
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        */
+        
     }
 
     private static void consultaRegistro(String nomeArquivo) {
@@ -593,4 +788,237 @@ public class Exercício11 {
         textoDecifrado = new String(out2);
         
     }
+
+    private static void incluiHMacNome(File file) throws Exception {
+
+        int addProvider = Security.addProvider(new BouncyCastleProvider());
+        
+        String nomeArquivo = file.getName();
+        
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chaveHMac = new SecretKeySpec(chaveByte, "HMacSHA256");
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        byte[] hMacNomeArquivo = hMac.doFinal();
+        
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(0).add(toHex(hMacNomeArquivo));
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        /*
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chave = new SecretKeySpec(chaveByte, "AES");
+        Key chaveHMac = new SecretKeySpec(chave.getEncoded(), "HMacSHA256");
+        
+        Key ivGerado = generateDerivedKey(chaveMestreString, salIvNome, iteracoes);
+        String ivHex = Hex.encodeHexString(ivGerado.getEncoded());
+        byte[] ivByte = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        IvParameterSpec ivSpec = new IvParameterSpec(ivByte);
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        //Cipher cipher = Cipher.getInstance("AES/CTR/PKCS7Padding");
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, chave, ivSpec);
+        
+        byte[] textoCifrado = new byte[cipher.getOutputSize(nomeArquivo.length() + hMac.getMacLength())];
+        
+        int ctLength = cipher.update(nomeArquivo.getBytes(), 0, nomeArquivo.length(), textoCifrado, 0);
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        ctLength += cipher.doFinal(hMac.doFinal(), 0, hMac.getMacLength(), textoCifrado, ctLength);
+        
+        String textoCifradoHex = toHex(textoCifrado);
+        
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(0).add(textoCifradoHex);
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        */
+    }
+
+    private static void incluiGcmKeyIv(Key aesKey, IvParameterSpec ivSpec) throws Exception {
+        
+        String chaveParamHex = Hex.encodeHexString(aesKey.getEncoded());
+        byte[] chavePlanaByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveParamHex.toCharArray());
+        
+        byte[] ivPlanoByte = ivSpec.getIV();
+        
+        //Chave e IV da chave
+        //Inicio
+        SecretKey sk = generateDerivedKey(chaveMestreString, salKeyGcmKey, iteracoes);
+        String chaveHex = Hex.encodeHexString(sk.getEncoded());
+        byte[] chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        
+        SecretKey si = generateDerivedKey(chaveMestreString, salIvGcmKey, iteracoes);
+        String ivHex = Hex.encodeHexString(si.getEncoded());
+        byte[] iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        
+        GCMBlockCipher gcmChave = new GCMBlockCipher(new AESEngine());
+        
+        KeyParameter chave2 = new KeyParameter(chave);
+        AEADParameters params = new AEADParameters(chave2, 64, iv);
+        
+        gcmChave.init(true, params);
+        int outsize = gcmChave.getOutputSize(chavePlanaByte.length);
+        byte[] chaveCifrada = new byte[outsize];
+        
+        int lengthOutc = gcmChave.processBytes(chavePlanaByte, 0, chavePlanaByte.length, chaveCifrada, 0);
+        
+        gcmChave.doFinal(chaveCifrada, lengthOutc);
+        
+        
+        //Fim
+        
+        //Chave e IV do IV
+        //Inicio
+        
+        sk = generateDerivedKey(chaveMestreString, salKeyGcmIv, iteracoes);
+        chaveHex = Hex.encodeHexString(sk.getEncoded());
+        chave = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        
+        si = generateDerivedKey(chaveMestreString, salIvGcmIv, iteracoes);
+        ivHex = Hex.encodeHexString(si.getEncoded());
+        iv = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        
+        GCMBlockCipher gcmIv = new GCMBlockCipher(new AESEngine());
+        
+        chave2 = new KeyParameter(chave);
+        params = new AEADParameters(chave2, 64, iv);
+        
+        gcmIv.init(true, params);
+        outsize = gcmIv.getOutputSize(ivPlanoByte.length);
+        byte[] ivCifrado = new byte[outsize];
+        
+        lengthOutc = gcmIv.processBytes(ivPlanoByte, 0, ivPlanoByte.length, ivCifrado, 0);
+        
+        gcmIv.doFinal(ivCifrado, lengthOutc);
+        
+        //Fim
+        
+        //Adiciona ambos no chaveiro
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(1).add(toHex(chaveCifrada));
+        conteudoChaveiro.get(2).add(toHex(ivCifrado));
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        
+    }
+
+    private static int verificaNome(String nomeArquivo) throws Exception{
+
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chaveHMac = new SecretKeySpec(chaveByte, "HMacSHA256");
+        
+        Key ivGerado = generateDerivedKey(chaveMestreString, salIvNome, iteracoes);
+        String ivHex = Hex.encodeHexString(ivGerado.getEncoded());
+        byte[] ivByte = org.apache.commons.codec.binary.Hex.decodeHex(ivHex.toCharArray());
+        IvParameterSpec ivSpec = new IvParameterSpec(ivByte);
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        byte[] hMacNomeArquivo = hMac.doFinal();
+        
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        ArrayList<String> hMacArquivoChaveiro = conteudoChaveiro.get(0);
+        int posicao = -1;
+        for (int i = 0; i < hMacArquivoChaveiro.size(); i++) {
+            String arquivo = hMacArquivoChaveiro.get(i);
+            byte[] arquivoByte = org.apache.commons.codec.binary.Hex.decodeHex(arquivo.toCharArray());
+            if(MessageDigest.isEqual(arquivoByte, hMacNomeArquivo)){
+                posicao = i;
+            }
+        }
+        
+        return posicao;
+        
+        //MessageDigest.isEqual(hMac.doFinal(), messageMac));
+        /*
+        Key chaveGerada = generateDerivedKey(chaveMestreString, salKeyNome, iteracoes);
+        String chaveHex = Hex.encodeHexString(chaveGerada.getEncoded());
+        byte[] chaveByte = org.apache.commons.codec.binary.Hex.decodeHex(chaveHex.toCharArray());
+        Key chaveHMac = new SecretKeySpec(chaveByte, "HMacSHA256");
+        
+        Mac hMac = Mac.getInstance("HMacSHA256");
+        
+        hMac.init(chaveHMac);
+        hMac.update(nomeArquivo.getBytes());
+        
+        byte[] hMacNomeArquivo = hMac.doFinal();
+        
+        FileInputStream chaveiroInput = new FileInputStream(chaveiro);
+        ObjectInputStream objInput = new ObjectInputStream(chaveiroInput);
+        
+        ArrayList<ArrayList> conteudoChaveiro = (ArrayList)objInput.readObject();
+        
+        objInput.close();
+        
+        conteudoChaveiro.get(0).add(toHex(hMacNomeArquivo));
+        
+        FileOutputStream chaveiroOut = new FileOutputStream(chaveiro);
+        ObjectOutputStream objOut = new ObjectOutputStream(chaveiroOut);
+        
+        objOut.writeObject(conteudoChaveiro);
+        
+        objOut.close();
+        */
+        
+        
+    }
+    
+    
 }
