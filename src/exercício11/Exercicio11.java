@@ -47,7 +47,7 @@ import org.bouncycastle.crypto.InvalidCipherTextException;
  *
  * @author jan
  */
-public class Exercício11 {
+public class Exercicio11 {
 
     private static SecretKey chaveMestre;
     private static String chaveMestreString;
